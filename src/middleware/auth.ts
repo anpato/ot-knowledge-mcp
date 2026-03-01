@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono';
+import { logger } from '../config/logger.js';
 
 /**
  * Bearer token authentication middleware for MCP server
@@ -10,7 +11,7 @@ export function bearerAuth(options?: { apiKeys?: string[] }) {
   const apiKeys = options?.apiKeys || [process.env.API_KEY].filter(Boolean) as string[];
 
   if (apiKeys.length === 0) {
-    console.warn('WARNING: No API keys configured. Authentication is disabled.');
+    logger.warn('No API keys configured. Authentication is disabled.');
   }
 
   return async (c: Context, next: Next) => {
@@ -23,6 +24,7 @@ export function bearerAuth(options?: { apiKeys?: string[] }) {
 
     // Check if Authorization header is present
     if (!authHeader) {
+      logger.warn({ path: c.req.path, method: c.req.method }, 'Authentication failed: Missing Authorization header');
       c.status(401);
       c.header('WWW-Authenticate', 'Bearer realm="OT Knowledge MCP", error="invalid_token", error_description="Missing Authorization header"');
       return c.json({
@@ -34,6 +36,7 @@ export function bearerAuth(options?: { apiKeys?: string[] }) {
     // Check if it's a Bearer token
     const [scheme, token] = authHeader.split(' ');
     if (scheme !== 'Bearer' || !token) {
+      logger.warn({ path: c.req.path, method: c.req.method }, 'Authentication failed: Invalid Authorization header format');
       c.status(401);
       c.header('WWW-Authenticate', 'Bearer realm="OT Knowledge MCP", error="invalid_token", error_description="Invalid Authorization header format"');
       return c.json({
@@ -58,6 +61,7 @@ export function bearerAuth(options?: { apiKeys?: string[] }) {
     });
 
     if (!isValid) {
+      logger.warn({ path: c.req.path, method: c.req.method }, 'Authentication failed: Invalid API key');
       c.status(401);
       c.header('WWW-Authenticate', 'Bearer realm="OT Knowledge MCP", error="invalid_token", error_description="Invalid or expired token"');
       return c.json({
@@ -66,6 +70,7 @@ export function bearerAuth(options?: { apiKeys?: string[] }) {
       });
     }
 
+    logger.debug({ path: c.req.path, method: c.req.method }, 'Authentication successful');
     // Token is valid, proceed to next middleware
     await next();
   };

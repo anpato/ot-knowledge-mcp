@@ -25,6 +25,8 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /app/dist ./dist
 
 ENV PORT=3100
+ENV NODE_ENV=production
+ENV LOG_LEVEL=info
 EXPOSE 3100
 
 USER node

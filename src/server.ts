@@ -8,6 +8,7 @@ import { getInterventions } from './tools/get-interventions.js';
 import { getComprehensiveOverview } from './tools/get-comprehensive-overview.js';
 import { fetchWebResource } from './tools/fetch-web-resource.js';
 import { searchClinicalGuidelines } from './tools/search-clinical-guidelines.js';
+import { withToolLogging } from './utils/tool-logger.js';
 
 const bodySystemEnum = z.enum([
   'neurological', 'musculoskeletal', 'cardiopulmonary', 'integumentary',
@@ -53,7 +54,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => searchConditions(args),
+    async (args) => withToolLogging('search_conditions', args, () => searchConditions(args)),
   );
 
   server.registerTool(
@@ -70,7 +71,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => getTreatments(args),
+    async (args) => withToolLogging('get_treatments', args, () => getTreatments(args)),
   );
 
   server.registerTool(
@@ -87,7 +88,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => lookupAssessments(args),
+    async (args) => withToolLogging('lookup_assessments', args, () => lookupAssessments(args)),
   );
 
   server.registerTool(
@@ -102,7 +103,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => searchGlossary(args),
+    async (args) => withToolLogging('search_glossary', args, () => searchGlossary(args)),
   );
 
   server.registerTool(
@@ -117,7 +118,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => getInterventions(args),
+    async (args) => withToolLogging('get_interventions', args, () => getInterventions(args)),
   );
 
   server.registerTool(
@@ -131,7 +132,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => getComprehensiveOverview(args),
+    async (args) => withToolLogging('get_comprehensive_overview', args, () => getComprehensiveOverview(args)),
   );
 
   server.registerTool(
@@ -147,7 +148,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => fetchWebResource(args),
+    async (args) => withToolLogging('fetch_web_resource', args, () => fetchWebResource(args)),
   );
 
   server.registerTool(
@@ -161,7 +162,7 @@ export function createOTServer(): McpServer {
       },
       annotations: { readOnlyHint: true },
     },
-    async (args) => searchClinicalGuidelines(args),
+    async (args) => withToolLogging('search_clinical_guidelines', args, () => searchClinicalGuidelines(args)),
   );
 
   return server;

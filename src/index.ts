@@ -2,12 +2,17 @@ import 'dotenv/config';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { StreamableHTTPTransport } from '@hono/mcp';
+import { pinoLogger } from 'hono-pino';
 import { createOTServer } from './server.js';
 import { bearerAuth } from './middleware/auth.js';
+import { logger } from './config/logger.js';
 
 const app = new Hono();
 const server = createOTServer();
 const transport = new StreamableHTTPTransport();
+
+// Apply logging middleware globally
+app.use('*', pinoLogger({ pino: logger }));
 
 app.get('/uptime', (c) => {
   return c.json({
@@ -34,7 +39,7 @@ app.all('/mcp', bearerAuth(), async (c) => {
 
 const port = parseInt(process.env.PORT || '3100', 10);
 serve({ fetch: app.fetch, port }, () => {
-  console.log(
+  logger.info(
     `OT Knowledge MCP server running on http://localhost:${port}/mcp`
   );
 });
