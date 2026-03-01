@@ -3,7 +3,7 @@ name: Build and Publish to GHCR
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -47,10 +47,13 @@ jobs:
       - name: Build and push
         id: push
         uses: docker/build-push-action@v6
+        if: github.event_name != 'pull_request'
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{env.IMAGE_NAME}}:${{github.sha}}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Generate artifact attestation
@@ -60,3 +63,46 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+      - name: Check out deployment repo code
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: deployment
+          repository: anpato/ot-knowledge-deployment
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Kustomize
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+
+      - name: Update deployment tag
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          cd deployment
+          git config --global user.email "git@volttrack.io"
+          git config --global user.name "GH Actions"
+          # Always sync first
+          git pull --rebase
+          cd envs/dev
+          ../../../kustomize edit set image \
+            ${{ env.IMAGE_NAME }}=${{ env.IMAGE_NAME }}:${{github.sha}}
+          cd ../../
+          git add .
+          if git diff --cached --quiet; then
+            echo "No changes detected"
+            exit 0
+          fi
+          git commit -m "set dev to ${{github.sha}}"
+          git push origin main
+
+      - name: Sync ArgoCD
+        id: argo-sync
+        uses: clowdhaus/argo-cd-action/@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          version: 3.2.1
+          command: app
+          options: sync mcp-dev --server argocd.apps.dev-01.6cclab.dev --auth-token ${{ secrets.ARGO_TOKEN }}
