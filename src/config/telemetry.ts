@@ -6,23 +6,29 @@ import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
   ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
+  ATTR_SERVICE_VERSION
 } from '@opentelemetry/semantic-conventions';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { McpInstrumentation } = require('@theharithsa/opentelemetry-instrumentation-mcp');
+const {
+  McpInstrumentation
+} = require('@theharithsa/opentelemetry-instrumentation-mcp');
 
 const resource = resourceFromAttributes({
   [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'ot-knowledge-mcp',
-  [ATTR_SERVICE_VERSION]: process.env.npm_package_version || '1.0.0',
+  [ATTR_SERVICE_VERSION]: process.env.npm_package_version || '1.0.0'
 });
 
 const sdk = new NodeSDK({
   resource,
-  traceExporter: new OTLPTraceExporter(),
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+  }),
   metricReader: new PeriodicExportingMetricReader({
-    exporter: new OTLPMetricExporter(),
-    exportIntervalMillis: 60_000,
+    exporter: new OTLPMetricExporter({
+      url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+    }),
+    exportIntervalMillis: 60_000
   }),
   instrumentations: [
     getNodeAutoInstrumentations({
@@ -32,19 +38,16 @@ const sdk = new NodeSDK({
         ignoreIncomingRequestHook: (req) => {
           const url = req.url ?? '';
           return url === '/health' || url === '/uptime';
-        },
-      },
+        }
+      }
     }),
-    new McpInstrumentation(),
-  ],
+    new McpInstrumentation()
+  ]
 });
 
 sdk.start();
 
-const shutdown = async () => {
+// Export shutdown function to be called by graceful shutdown handler
+export const shutdownTelemetry = async () => {
   await sdk.shutdown();
-  process.exit(0);
 };
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);

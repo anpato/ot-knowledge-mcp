@@ -1,4 +1,4 @@
-import './config/telemetry.js';
+import { shutdownTelemetry } from './config/telemetry.js';
 import 'dotenv/config';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
@@ -13,8 +13,21 @@ const app = new Hono();
 const server = createOTServer();
 const transport = new StreamableHTTPTransport();
 
-// Apply logging middleware globally
-app.use('*', pinoLogger({ pino: logger }));
+// Apply logging middleware globally with conditional logging
+app.use('*', pinoLogger({ 
+  pino: logger,
+  http: {
+    onReqMessage: false, // Don't log requests by default
+    onResMessage: (c) => {
+      const path = c.req.path;
+      // Skip logging for health check endpoints by using silent level
+      if (path === '/health' || path === '/uptime') {
+        c.get('logger').setResLevel('silent');
+      }
+      return c.error ? c.error.message : 'Request completed';
+    }
+  }
+}));
 
 app.get('/uptime', (c) => {
   return c.json({
@@ -41,8 +54,78 @@ app.all('/mcp', bearerAuth(), async (c) => {
 });
 
 const port = parseInt(process.env.PORT || '3100', 10);
-serve({ fetch: app.fetch, port }, () => {
+const httpServer = serve({ fetch: app.fetch, port }, () => {
   logger.info(
     `OT Knowledge MCP server running on http://localhost:${port}/mcp`
   );
+});
+
+// Graceful shutdown handler
+let isShuttingDown = false;
+
+const gracefulShutdown = async (signal: string) => {
+  if (isShuttingDown) {
+    logger.warn('Shutdown already in progress, forcing exit');
+    process.exit(1);
+  }
+
+  isShuttingDown = true;
+  logger.info(`Received ${signal}, starting graceful shutdown`);
+
+  // Set a timeout to force shutdown if graceful shutdown takes too long
+  const forceShutdownTimeout = setTimeout(() => {
+    logger.error('Graceful shutdown timeout exceeded, forcing exit');
+    process.exit(1);
+  }, 30000); // 30 second timeout
+
+  try {
+    // Stop accepting new connections
+    logger.debug('Closing HTTP server');
+    await new Promise<void>((resolve, reject) => {
+      httpServer.close((err) => {
+        if (err) {
+          logger.error({ err }, 'Error closing HTTP server');
+          reject(err);
+        } else {
+          logger.debug('HTTP server closed');
+          resolve();
+        }
+      });
+    });
+
+    // Disconnect MCP server if connected
+    if (server.isConnected()) {
+      logger.debug('Closing MCP server connection');
+      await server.close();
+      logger.debug('MCP server closed');
+    }
+
+    // Shutdown OpenTelemetry SDK
+    logger.debug('Shutting down telemetry');
+    await shutdownTelemetry();
+    logger.debug('Telemetry shutdown complete');
+
+    clearTimeout(forceShutdownTimeout);
+    logger.info('Graceful shutdown completed successfully');
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(forceShutdownTimeout);
+    logger.error({ err: error }, 'Error during graceful shutdown');
+    process.exit(1);
+  }
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  logger.fatal({ err: error }, 'Uncaught exception');
+  gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.fatal({ reason, promise }, 'Unhandled promise rejection');
+  gracefulShutdown('unhandledRejection');
 });
