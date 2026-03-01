@@ -8,7 +8,9 @@ import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
 } from '@opentelemetry/semantic-conventions';
-import { McpInstrumentation } from '@theharithsa/opentelemetry-instrumentation-mcp';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { McpInstrumentation } = require('@theharithsa/opentelemetry-instrumentation-mcp');
 
 const resource = resourceFromAttributes({
   [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'ot-knowledge-mcp',
