@@ -1,5 +1,10 @@
 import { logger } from '../config/logger.js';
 import { performance } from 'perf_hooks';
+import {
+  toolCallCounter,
+  toolDurationHistogram,
+  toolResultSizeHistogram,
+} from '../config/metrics.js';
 
 /**
  * Redacts sensitive parameters from tool arguments
@@ -83,6 +88,9 @@ export async function withToolLogging<T>(
   const startTime = performance.now();
   const redactedArgs = redactToolArgs(args);
 
+  const toolAttrs = { 'mcp.tool.name': toolName };
+  toolCallCounter.add(1, toolAttrs);
+
   // Log tool invocation start
   logger.info(
     {
@@ -100,6 +108,8 @@ export async function withToolLogging<T>(
 
     // "not found" is treated as a distinct (expected) error category
     if (isNotFoundResult(result)) {
+      toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'error' });
+      toolResultSizeHistogram.record(resultSize, toolAttrs);
       logger.warn(
         {
           tool: toolName,
@@ -116,6 +126,8 @@ export async function withToolLogging<T>(
 
     // Tool returned an error result (but did not throw)
     if (isErrorResult(result)) {
+      toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'error' });
+      toolResultSizeHistogram.record(resultSize, toolAttrs);
       logger.error(
         {
           tool: toolName,
@@ -129,6 +141,10 @@ export async function withToolLogging<T>(
       );
       return result;
     }
+
+    // Record success metrics
+    toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'success' });
+    toolResultSizeHistogram.record(resultSize, toolAttrs);
 
     // Log successful completion
     logger.info(
@@ -145,6 +161,8 @@ export async function withToolLogging<T>(
   } catch (error) {
     const duration = performance.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'exception' });
 
     // Log error
     logger.error(

@@ -27,6 +27,9 @@ COPY --from=build /app/dist ./dist
 ENV PORT=3100
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
+ENV OTEL_SERVICE_NAME=ot-knowledge-mcp
+ENV OTEL_TRACES_EXPORTER=otlp
+ENV OTEL_METRICS_EXPORTER=otlp
 EXPOSE 3100
 
 USER node

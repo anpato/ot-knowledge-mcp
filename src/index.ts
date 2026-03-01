@@ -1,3 +1,4 @@
+import './config/telemetry.js';
 import 'dotenv/config';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
@@ -6,6 +7,7 @@ import { pinoLogger } from 'hono-pino';
 import { createOTServer } from './server.js';
 import { bearerAuth } from './middleware/auth.js';
 import { logger } from './config/logger.js';
+import { mcpRequestCounter } from './config/metrics.js';
 
 const app = new Hono();
 const server = createOTServer();
@@ -31,6 +33,7 @@ app.get('/health', (c) => {
 
 // Apply authentication middleware to MCP endpoint only
 app.all('/mcp', bearerAuth(), async (c) => {
+  mcpRequestCounter.add(1, { 'http.request.method': c.req.method });
   if (!server.isConnected()) {
     await server.connect(transport);
   }

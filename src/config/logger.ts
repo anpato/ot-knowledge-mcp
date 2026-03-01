@@ -1,10 +1,26 @@
 import pino from 'pino';
+import { trace, isSpanContextValid } from '@opentelemetry/api';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const logLevel = process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info');
 
 export const logger = pino({
   level: logLevel,
+  mixin() {
+    const span = trace.getActiveSpan();
+    if (span) {
+      const ctx = span.spanContext();
+      if (isSpanContextValid(ctx)) {
+        return {
+          traceId: ctx.traceId,
+          spanId: ctx.spanId,
+          traceFlags: ctx.traceFlags,
+        };
+      }
+    }
+    return {};
+  },
+  mixinMergeStrategy: (mergeObject, mixinObject) => Object.assign(mergeObject, mixinObject),
   redact: {
     paths: [
       'req.headers.authorization',
