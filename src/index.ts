@@ -1,5 +1,6 @@
 import { shutdownTelemetry } from './config/telemetry.js';
 import 'dotenv/config';
+import { httpInstrumentationMiddleware } from '@hono/otel';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { StreamableHTTPTransport } from '@hono/mcp';
@@ -12,22 +13,21 @@ import { mcpRequestCounter } from './config/metrics.js';
 const app = new Hono();
 const server = createOTServer();
 const transport = new StreamableHTTPTransport();
-
+app.use(httpInstrumentationMiddleware());
 // Apply logging middleware globally with conditional logging
-app.use('*', pinoLogger({ 
-  pino: logger,
-  http: {
-    onReqMessage: false, // Don't log requests by default
-    onResMessage: (c) => {
-      const path = c.req.path;
-      // Skip logging for health check endpoints by using silent level
-      if (path === '/health' || path === '/uptime') {
-        c.get('logger').setResLevel('silent');
-      }
-      return c.error ? c.error.message : 'Request completed';
-    }
+app.use('*', async (c, next) => {
+  const path = c.req.path;
+  // Skip logging for health and uptime endpoints
+  if (path === '/health' || path === '/uptime') {
+    await next();
+    return;
   }
-}));
+  // Apply pino logger for all other routes
+  const pinoMiddleware = pinoLogger({
+    pino: logger
+  });
+  await pinoMiddleware(c as any, next);
+});
 
 app.get('/uptime', (c) => {
   return c.json({

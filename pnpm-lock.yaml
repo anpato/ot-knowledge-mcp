@@ -14,6 +14,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.9(hono@4.12.3)
+      '@hono/otel':
+        specifier: ^1.1.0
+        version: 1.1.0(hono@4.12.3)
       '@modelcontextprotocol/sdk':
         specifier: ^1.13.3
         version: 1.27.1(zod@3.25.76)
@@ -95,6 +98,11 @@ packages:
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
+
+  '@hono/otel@1.1.0':
+    resolution: {integrity: sha512-3lXExGP+odVTF3W1kTHgRGw4d4xdiYpeRs8dnTwfnHfw5uGEXgUzmkB4/ZQd3tDxYRt7eUhnWuBk5ChV97eqkA==}
+    peerDependencies:
+      hono: '>=4.0.0'
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -1921,6 +1929,12 @@ snapshots:
 
   '@hono/node-server@1.19.9(hono@4.12.3)':
     dependencies:
+      hono: 4.12.3
+
+  '@hono/otel@1.1.0(hono@4.12.3)':
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/semantic-conventions': 1.40.0
       hono: 4.12.3
 
   '@isaacs/cliui@8.0.2':
