@@ -24,15 +24,17 @@ const traceExporter = new OTLPTraceExporter({
   url: `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`
 });
 
+const spanProcessor = new BatchSpanProcessor(traceExporter, {
+  // Export spans every 5 seconds or when batch size reaches 512
+  scheduledDelayMillis: 5000,
+  maxQueueSize: 2048,
+  maxExportBatchSize: 512,
+  exportTimeoutMillis: 30000
+});
+
 const sdk = new NodeSDK({
   resource,
-  spanProcessor: new BatchSpanProcessor(traceExporter, {
-    // Export spans every 5 seconds or when batch size reaches 512
-    scheduledDelayMillis: 5000,
-    maxQueueSize: 2048,
-    maxExportBatchSize: 512,
-    exportTimeoutMillis: 30000
-  }),
+  spanProcessor,
   metricReader: new PeriodicExportingMetricReader({
     exporter: new OTLPMetricExporter({
       url: `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics`
@@ -54,9 +56,25 @@ const sdk = new NodeSDK({
   ]
 });
 
-sdk.start();
+// Start the SDK and handle any initialization errors
+try {
+  sdk.start();
+  console.log('OpenTelemetry SDK started successfully');
+  console.log(`Traces exporting to: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`);
+  console.log(`Metrics exporting to: ${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics`);
+} catch (error) {
+  console.error('Failed to start OpenTelemetry SDK:', error);
+}
 
 // Export shutdown function to be called by graceful shutdown handler
 export const shutdownTelemetry = async () => {
-  await sdk.shutdown();
+  try {
+    // Force flush any pending spans before shutdown
+    console.log('Flushing pending telemetry data...');
+    await spanProcessor.forceFlush();
+    await sdk.shutdown();
+    console.log('OpenTelemetry SDK shutdown complete');
+  } catch (error) {
+    console.error('Error shutting down OpenTelemetry SDK:', error);
+  }
 };
