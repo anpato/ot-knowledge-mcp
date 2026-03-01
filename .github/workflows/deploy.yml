@@ -70,7 +70,7 @@ jobs:
           ref: main
           path: deployment
           repository: anpato/ot-knowledge-deployment
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT }}
 
       - name: Install Kustomize
         if: github.event_name != 'pull_request'
@@ -82,7 +82,6 @@ jobs:
         shell: bash
         run: |
           cd deployment
-          git config --global user.email "git@volttrack.io"
           git config --global user.name "GH Actions"
           # Always sync first
           git pull --rebase
