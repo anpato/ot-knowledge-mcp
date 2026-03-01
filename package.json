@@ -12,7 +12,9 @@
     "@hono/mcp": "^0.1.0",
     "@hono/node-server": "^1.14.0",
     "@modelcontextprotocol/sdk": "^1.13.3",
+    "dotenv": "^17.3.1",
     "hono": "^4.7.0",
+    "node-html-markdown": "^2.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

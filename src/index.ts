@@ -1,7 +1,9 @@
+import 'dotenv/config';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { StreamableHTTPTransport } from '@hono/mcp';
 import { createOTServer } from './server.js';
+import { bearerAuth } from './middleware/auth.js';
 
 const app = new Hono();
 const server = createOTServer();
@@ -22,7 +24,8 @@ app.get('/health', (c) => {
   });
 });
 
-app.all('/mcp', async (c) => {
+// Apply authentication middleware to MCP endpoint only
+app.all('/mcp', bearerAuth(), async (c) => {
   if (!server.isConnected()) {
     await server.connect(transport);
   }

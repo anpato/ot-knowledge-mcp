@@ -6,6 +6,8 @@ import { lookupAssessments } from './tools/lookup-assessments.js';
 import { searchGlossary } from './tools/search-glossary.js';
 import { getInterventions } from './tools/get-interventions.js';
 import { getComprehensiveOverview } from './tools/get-comprehensive-overview.js';
+import { fetchWebResource } from './tools/fetch-web-resource.js';
+import { searchClinicalGuidelines } from './tools/search-clinical-guidelines.js';
 
 const bodySystemEnum = z.enum([
   'neurological', 'musculoskeletal', 'cardiopulmonary', 'integumentary',
@@ -130,6 +132,36 @@ export function createOTServer(): McpServer {
       annotations: { readOnlyHint: true },
     },
     async (args) => getComprehensiveOverview(args),
+  );
+
+  server.registerTool(
+    'fetch_web_resource',
+    {
+      title: 'Fetch Web Resource',
+      description:
+        'Fetch content from a web URL and convert it to clean markdown format. Useful for retrieving clinical guidelines, research articles, or documentation from authoritative sources.',
+      inputSchema: {
+        url: z.string().describe('URL to fetch (required, must be http or https)'),
+        includeLinks: z.boolean().optional().describe('Whether to preserve hyperlinks in the markdown output (default: true)'),
+        timeout: z.number().optional().describe('Request timeout in milliseconds (default: 15000)'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => fetchWebResource(args),
+  );
+
+  server.registerTool(
+    'search_clinical_guidelines',
+    {
+      title: 'Search Clinical Guidelines',
+      description:
+        'Search a curated database of authoritative clinical practice guidelines and evidence-based resources relevant to occupational therapy. Returns URLs and descriptions that can be fetched using the fetch_web_resource tool.',
+      inputSchema: {
+        topic: z.string().optional().describe('Filter guidelines by topic or condition (e.g., "stroke", "arthritis", "mental-health")'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => searchClinicalGuidelines(args),
   );
 
   return server;
