@@ -22,11 +22,11 @@ const resource = resourceFromAttributes({
 const sdk = new NodeSDK({
   resource,
   traceExporter: new OTLPTraceExporter({
-    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+    url: `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`
   }),
   metricReader: new PeriodicExportingMetricReader({
     exporter: new OTLPMetricExporter({
-      url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+      url: `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/metrics`
     }),
     exportIntervalMillis: 60_000
   }),
