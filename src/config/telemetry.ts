@@ -3,6 +3,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-node';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import {
   ATTR_SERVICE_NAME,
@@ -19,10 +20,18 @@ const resource = resourceFromAttributes({
   [ATTR_SERVICE_VERSION]: process.env.npm_package_version || '1.0.0'
 });
 
+const traceExporter = new OTLPTraceExporter({
+  url: `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`
+});
+
 const sdk = new NodeSDK({
   resource,
-  traceExporter: new OTLPTraceExporter({
-    url: `${process.env.OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`
+  spanProcessor: new BatchSpanProcessor(traceExporter, {
+    // Export spans every 5 seconds or when batch size reaches 512
+    scheduledDelayMillis: 5000,
+    maxQueueSize: 2048,
+    maxExportBatchSize: 512,
+    exportTimeoutMillis: 30000
   }),
   metricReader: new PeriodicExportingMetricReader({
     exporter: new OTLPMetricExporter({
