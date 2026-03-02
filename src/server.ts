@@ -11,6 +11,7 @@ import { searchClinicalGuidelines } from './tools/search-clinical-guidelines.js'
 import { getStateResources } from './tools/get-state-resources.js';
 import { listStates } from './tools/list-states.js';
 import { fetchStateOTPage } from './tools/fetch-state-ot-page.js';
+import { enrichWithWebResources } from './tools/enrich-with-web-resources.js';
 import { withToolLogging } from './utils/tool-logger.js';
 
 const bodySystemEnum = z.enum([
@@ -214,6 +215,24 @@ export function createOTServer(): McpServer {
       annotations: { readOnlyHint: true },
     },
     async (args) => withToolLogging('fetch_state_ot_page', args, () => fetchStateOTPage(args)),
+  );
+
+  server.registerTool(
+    'enrich_with_web_resources',
+    {
+      title: 'Enrich with Web Resources',
+      description:
+        'Enrich a topic with live web content from reputable clinical sources. Matches curated sources by condition or keyword, then fetches their content in parallel. Chain after any other tool to add authoritative web context.',
+      inputSchema: {
+        topic: z.string().describe('Condition name, keyword, or treatment area to find sources for (e.g., "stroke", "autism", "mental-health")'),
+        sources: z.array(z.string()).optional().describe('Filter by specific source IDs (e.g., ["aota", "who"]). Omit to auto-match by topic.'),
+        maxResults: z.number().min(1).max(5).optional().describe('Maximum number of sources to fetch (1-5, default 3)'),
+        includeContent: z.boolean().optional().describe('Set to false for metadata-only mode without HTTP fetching (default: true)'),
+        timeout: z.number().optional().describe('Per-request timeout in milliseconds (default: 10000)'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => withToolLogging('enrich_with_web_resources', args, () => enrichWithWebResources(args)),
   );
 
   return server;
