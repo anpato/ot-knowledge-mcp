@@ -113,3 +113,47 @@ export interface EvidenceBasedIntervention {
   keyReferences: string[];
   clinicalConsiderations: string;
 }
+
+export type StateResourceCategory =
+  | 'licensing'
+  | 'reimbursement'
+  | 'associations'
+  | 'telehealth';
+
+export interface StateLicensingInfo {
+  board: { name: string; url: string; phone: string };
+  licenseTypes: string[];
+  renewalCycleYears: number;
+  continuingEducationHours: number;
+  continuingEducationNotes: string;
+  otaSupervisionRequirements: string;
+}
+
+export interface StateReimbursementInfo {
+  medicaidCoverageNotes: string;
+  priorAuthorization: { required: boolean; notes: string };
+  keyBillingConsiderations: string;
+}
+
+export interface StateProfessionalAssociationInfo {
+  association: { name: string; url: string };
+  resources: string[];
+  advocacyInfo: string;
+}
+
+export interface StateTelehealthInfo {
+  regulations: string;
+  otCompactMember: { member: boolean; notes: string };
+  keyRestrictions: string;
+}
+
+export interface StateOTResources {
+  stateCode: string;
+  stateName: string;
+  dataLastReviewed: string;
+  disclaimer: string;
+  licensing: StateLicensingInfo;
+  reimbursement: StateReimbursementInfo;
+  associations: StateProfessionalAssociationInfo;
+  telehealth: StateTelehealthInfo;
+}

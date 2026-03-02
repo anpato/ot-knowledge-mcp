@@ -8,6 +8,9 @@ import { getInterventions } from './tools/get-interventions.js';
 import { getComprehensiveOverview } from './tools/get-comprehensive-overview.js';
 import { fetchWebResource } from './tools/fetch-web-resource.js';
 import { searchClinicalGuidelines } from './tools/search-clinical-guidelines.js';
+import { getStateResources } from './tools/get-state-resources.js';
+import { listStates } from './tools/list-states.js';
+import { fetchStateOTPage } from './tools/fetch-state-ot-page.js';
 import { withToolLogging } from './utils/tool-logger.js';
 
 const bodySystemEnum = z.enum([
@@ -34,6 +37,12 @@ const glossaryCategoryEnum = z.enum([
 const evidenceLevelEnum = z.enum([
   'strong', 'moderate', 'limited', 'emerging', 'expert-opinion',
 ]);
+
+const stateResourceCategoryEnum = z.enum([
+  'licensing', 'reimbursement', 'associations', 'telehealth',
+]);
+
+const stateOTPageSourceEnum = z.enum(['board', 'association']);
 
 export function createOTServer(): McpServer {
   const server = new McpServer({
@@ -163,6 +172,48 @@ export function createOTServer(): McpServer {
       annotations: { readOnlyHint: true },
     },
     async (args) => withToolLogging('search_clinical_guidelines', args, () => searchClinicalGuidelines(args)),
+  );
+
+  server.registerTool(
+    'get_state_resources',
+    {
+      title: 'Get State OT Resources',
+      description:
+        'Get state-specific occupational therapy resources including licensing requirements, reimbursement info, professional associations, and telehealth regulations for a given US state.',
+      inputSchema: {
+        state: z.string().length(2).describe('Two-letter US state code (e.g., "CA", "TX", "NY")'),
+        category: stateResourceCategoryEnum.optional().describe('Filter by resource category'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => withToolLogging('get_state_resources', args, () => getStateResources(args)),
+  );
+
+  server.registerTool(
+    'list_states',
+    {
+      title: 'List States',
+      description:
+        'List all US states and territories with available OT resources. Use this to discover valid state codes before calling get_state_resources.',
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    async () => withToolLogging('list_states', {}, () => listStates()),
+  );
+
+  server.registerTool(
+    'fetch_state_ot_page',
+    {
+      title: 'Fetch State OT Page',
+      description:
+        'Fetch the live web page for a state\'s OT licensing board or professional association. Combines the state resource lookup with web fetching in one step.',
+      inputSchema: {
+        state: z.string().length(2).describe('Two-letter US state code (e.g., "CA", "TX", "NY")'),
+        source: stateOTPageSourceEnum.optional().describe('Which page to fetch: "board" (licensing board, default) or "association" (professional association)'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (args) => withToolLogging('fetch_state_ot_page', args, () => fetchStateOTPage(args)),
   );
 
   return server;
