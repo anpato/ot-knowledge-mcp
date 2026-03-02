@@ -5,6 +5,7 @@ import {
   toolDurationHistogram,
   toolResultSizeHistogram,
 } from '../config/metrics.js';
+import { trace, SpanStatusCode } from '@opentelemetry/api';
 
 /**
  * Redacts sensitive parameters from tool arguments
@@ -78,105 +79,154 @@ function getErrorMessage(result: unknown): string | null {
 }
 
 /**
- * Wraps a tool handler with comprehensive logging
+ * Wraps a tool handler with comprehensive logging and tracing
  */
 export async function withToolLogging<T>(
   toolName: string,
   args: Record<string, unknown>,
   handler: () => Promise<T>,
 ): Promise<T> {
-  const startTime = performance.now();
-  const redactedArgs = redactToolArgs(args);
+  const tracer = trace.getTracer('ot-knowledge-mcp');
+  
+  return tracer.startActiveSpan(`mcp.tool.${toolName}`, async (span) => {
+    const startTime = performance.now();
+    const redactedArgs = redactToolArgs(args);
 
-  const toolAttrs = { 'mcp.tool.name': toolName };
-  toolCallCounter.add(1, toolAttrs);
+    const toolAttrs = { 'mcp.tool.name': toolName };
+    toolCallCounter.add(1, toolAttrs);
 
-  // Log tool invocation start
-  logger.info(
-    {
-      tool: toolName,
-      args: redactedArgs,
-    },
-    'Tool invocation started',
-  );
+    // Set span attributes
+    span.setAttributes({
+      'mcp.tool.name': toolName,
+      'mcp.tool.args': JSON.stringify(redactedArgs),
+    });
 
-  try {
-    // Execute the tool handler
-    const result = await handler();
-    const duration = performance.now() - startTime;
-    const resultSize = calculateResultSize(result);
+    // Log tool invocation start
+    logger.info(
+      {
+        tool: toolName,
+        args: redactedArgs,
+      },
+      'Tool invocation started',
+    );
 
-    // "not found" is treated as a distinct (expected) error category
-    if (isNotFoundResult(result)) {
-      toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'error' });
+    try {
+      // Execute the tool handler
+      const result = await handler();
+      const duration = performance.now() - startTime;
+      const resultSize = calculateResultSize(result);
+
+      // "not found" is treated as a distinct (expected) error category
+      if (isNotFoundResult(result)) {
+        toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'error' });
+        toolResultSizeHistogram.record(resultSize, toolAttrs);
+        
+        span.setAttributes({
+          'mcp.tool.status': 'not_found',
+          'mcp.tool.duration_ms': duration,
+          'mcp.tool.result_size': resultSize,
+        });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: 'Not found' });
+        
+        logger.warn(
+          {
+            tool: toolName,
+            args: redactedArgs,
+            duration: Math.round(duration * 100) / 100,
+            resultSize,
+            notFound: true,
+            success: false,
+          },
+          'Tool completed with not found result',
+        );
+        
+        span.end();
+        return result;
+      }
+
+      // Tool returned an error result (but did not throw)
+      if (isErrorResult(result)) {
+        const errorMsg = getErrorMessage(result) || 'Tool returned error';
+        toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'error' });
+        toolResultSizeHistogram.record(resultSize, toolAttrs);
+        
+        span.setAttributes({
+          'mcp.tool.status': 'error',
+          'mcp.tool.duration_ms': duration,
+          'mcp.tool.result_size': resultSize,
+          'mcp.tool.error_message': errorMsg,
+        });
+        span.setStatus({ code: SpanStatusCode.ERROR, message: errorMsg });
+        
+        logger.error(
+          {
+            tool: toolName,
+            args: redactedArgs,
+            duration: Math.round(duration * 100) / 100,
+            resultSize,
+            error: errorMsg,
+            success: false,
+          },
+          'Tool invocation completed with error result',
+        );
+        
+        span.end();
+        return result;
+      }
+
+      // Record success metrics
+      toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'success' });
       toolResultSizeHistogram.record(resultSize, toolAttrs);
-      logger.warn(
+
+      span.setAttributes({
+        'mcp.tool.status': 'success',
+        'mcp.tool.duration_ms': duration,
+        'mcp.tool.result_size': resultSize,
+      });
+      span.setStatus({ code: SpanStatusCode.OK });
+
+      // Log successful completion
+      logger.info(
         {
           tool: toolName,
-          args: redactedArgs,
           duration: Math.round(duration * 100) / 100,
           resultSize,
-          notFound: true,
-          success: false,
+          success: true,
         },
-        'Tool completed with not found result',
+        'Tool invocation completed',
       );
-      return result;
-    }
 
-    // Tool returned an error result (but did not throw)
-    if (isErrorResult(result)) {
-      toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'error' });
-      toolResultSizeHistogram.record(resultSize, toolAttrs);
+      span.end();
+      return result;
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'exception' });
+
+      span.setAttributes({
+        'mcp.tool.status': 'exception',
+        'mcp.tool.duration_ms': duration,
+        'mcp.tool.error_message': errorMessage,
+      });
+      span.recordException(error as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
+
+      // Log error
       logger.error(
         {
           tool: toolName,
           args: redactedArgs,
           duration: Math.round(duration * 100) / 100,
-          resultSize,
-          error: getErrorMessage(result),
+          error: errorMessage,
           success: false,
         },
-        'Tool invocation completed with error result',
+        'Tool invocation failed',
       );
-      return result;
+
+      span.end();
+      // Re-throw the error
+      throw error;
     }
-
-    // Record success metrics
-    toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'success' });
-    toolResultSizeHistogram.record(resultSize, toolAttrs);
-
-    // Log successful completion
-    logger.info(
-      {
-        tool: toolName,
-        duration: Math.round(duration * 100) / 100,
-        resultSize,
-        success: true,
-      },
-      'Tool invocation completed',
-    );
-
-    return result;
-  } catch (error) {
-    const duration = performance.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-    toolDurationHistogram.record(duration, { ...toolAttrs, 'mcp.tool.status': 'exception' });
-
-    // Log error
-    logger.error(
-      {
-        tool: toolName,
-        args: redactedArgs,
-        duration: Math.round(duration * 100) / 100,
-        error: errorMessage,
-        success: false,
-      },
-      'Tool invocation failed',
-    );
-
-    // Re-throw the error
-    throw error;
-  }
+  });
 }

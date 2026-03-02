@@ -9,11 +9,6 @@ import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION
 } from '@opentelemetry/semantic-conventions';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const {
-  McpInstrumentation
-} = require('@theharithsa/opentelemetry-instrumentation-mcp');
 
 const resource = resourceFromAttributes({
   [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'ot-knowledge-mcp',
@@ -51,8 +46,7 @@ const sdk = new NodeSDK({
           return url === '/health' || url === '/uptime';
         }
       }
-    }),
-    new McpInstrumentation()
+    })
   ]
 });
 
