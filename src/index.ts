@@ -9,7 +9,7 @@ import { createOTServer } from './server.js';
 import { bearerAuth } from './middleware/auth.js';
 import { logger } from './config/logger.js';
 import { mcpRequestCounter } from './config/metrics.js';
-console.log('SEC', process.env.TEST_SECRET);
+
 const app = new Hono();
 const server = createOTServer();
 const transport = new StreamableHTTPTransport();
