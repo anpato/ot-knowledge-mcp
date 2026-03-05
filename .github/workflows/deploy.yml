@@ -65,11 +65,11 @@ jobs:
           push-to-registry: true
 
       - name: Check out deployment repo code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: main
           path: deployment
-          repository: anpato/ot-knowledge-deployment
+          repository: 6cclab/mcp-deployments
           token: ${{ secrets.PAT }}
 
       - name: Install Kustomize
@@ -85,16 +85,16 @@ jobs:
           git config --global user.name "GH Actions"
           # Always sync first
           git pull --rebase
-          cd envs/dev
-          ../../../kustomize edit set image \
+          cd ot-knowledge-mcp/envs/dev
+          ../../../../kustomize edit set image \
             ${{env.REGISTRY}}/${{ env.IMAGE_NAME }}=${{env.REGISTRY}}/${{ env.IMAGE_NAME }}:${{github.sha}}
-          cd ../../
+          cd ../../../
           git add .
           if git diff --cached --quiet; then
             echo "No changes detected"
             exit 0
           fi
-          git commit -m "set dev to ${{github.sha}}"
+          git commit -m "set ot-knowledge-mcp dev to ${{github.sha}}"
           git push origin main
 
       - name: Sync ArgoCD
@@ -105,4 +105,4 @@ jobs:
         with:
           version: 3.2.1
           command: app
-          options: sync mcp-dev --server argocd.apps.dev-01.6cclab.dev --auth-token ${{ secrets.ARGO_TOKEN }}
+          options: sync ot-knowledge-mcp-dev --server argocd.apps.dev-01.6cclab.dev --auth-token ${{ secrets.ARGO_TOKEN }}
