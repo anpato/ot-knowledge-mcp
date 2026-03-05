@@ -105,4 +105,4 @@ jobs:
         with:
           version: 3.2.1
           command: app
-          options: sync ot-knowledge-mcp-dev --server argocd.apps.dev-01.6cclab.dev --auth-token ${{ secrets.ARGO_TOKEN }}
+          options: sync mcp --server argocd.apps.dev-01.6cclab.dev --auth-token ${{ secrets.ARGO_TOKEN }}
