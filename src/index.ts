@@ -7,10 +7,13 @@ import { StreamableHTTPTransport } from '@hono/mcp';
 import { pinoLogger } from 'hono-pino';
 import { createOTServer } from './server.js';
 import { bearerAuth } from './middleware/auth.js';
+import { registerOAuthRoutes } from './oauth/routes.js';
 import { logger } from './config/logger.js';
 import { mcpRequestCounter } from './config/metrics.js';
 
-const app = new Hono();
+type AppEnv = { Variables: { clientName: string } };
+
+const app = new Hono<AppEnv>();
 const server = createOTServer();
 const transport = new StreamableHTTPTransport();
 app.use(httpInstrumentationMiddleware());
@@ -29,6 +32,8 @@ app.use('*', async (c, next) => {
   await pinoMiddleware(c as any, next);
 });
 
+registerOAuthRoutes(app);
+
 app.get('/uptime', (c) => {
   return c.json({
     status: 'UP',
@@ -46,7 +51,8 @@ app.get('/health', (c) => {
 
 // Apply authentication middleware to MCP endpoint only
 app.all('/mcp', bearerAuth(), async (c) => {
-  mcpRequestCounter.add(1, { 'http.request.method': c.req.method });
+  const clientName = c.get('clientName') || 'unknown';
+  mcpRequestCounter.add(1, { 'http.request.method': c.req.method, 'mcp.client.name': clientName });
   if (!server.isConnected()) {
     await server.connect(transport);
   }

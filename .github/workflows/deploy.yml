@@ -64,13 +64,25 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
+      - name: Fetch deploy secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.9
+        with:
+          method: 'universal'
+          identity-id: '25ed8732-32ba-4f81-9f25-36dfa85283e4'
+          domain: 'https://infisical.6cclab.dev'
+          env-slug: 'dev'
+          secret-path: /deploy
+          project-slug: 'github-actions-wc-rx'
+          client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
+          client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+
       - name: Check out deployment repo code
         uses: actions/checkout@v4
         with:
           ref: main
           path: deployment
           repository: 6cclab/mcp-deployments
-          token: ${{ secrets.PAT }}
+          token: ${{ env.PAT }}
 
       - name: Install Kustomize
         if: github.event_name != 'pull_request'
@@ -105,4 +117,4 @@ jobs:
         with:
           version: 3.2.1
           command: app
-          options: sync mcp --server argocd.apps.dev-01.6cclab.dev --auth-token ${{ secrets.ARGO_TOKEN }}
+          options: sync mcp --server argocd.apps.dev-01.6cclab.dev --auth-token ${{ env.ARGO_TOKEN }}

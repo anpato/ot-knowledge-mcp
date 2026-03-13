@@ -28,3 +28,7 @@ export const mcpRequestCounter = meter.createCounter(
     description: 'Total number of HTTP requests to MCP endpoints',
   },
 );
+
+export const authCounter = meter.createCounter('mcp.auth.attempts.total', {
+  description: 'Total authentication attempts by client and result',
+});
